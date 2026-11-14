@@ -9,7 +9,7 @@ from pasila_board.web_table import departures_frame, style_departure_rows
 HELSINKI = ZoneInfo("Europe/Helsinki")
 
 
-def test_cancelled_and_delayed_rows_get_distinct_colors() -> None:
+def test_cancelled_and_delayed_rows_use_red_background() -> None:
     cancelled = _departure(cancelled=True)
     delayed = _departure(
         estimate_local=datetime(2026, 11, 9, 20, 40, tzinfo=HELSINKI),
@@ -25,7 +25,7 @@ def test_cancelled_and_delayed_rows_get_distinct_colors() -> None:
         "Raide",
     ]
     assert "#f8d7da" in html
-    assert "#fff3cd" in html
+    assert "#fff3cd" not in html
     assert "peruttu" in html
     assert "+2 min" in html
     assert "_cancelled" not in html

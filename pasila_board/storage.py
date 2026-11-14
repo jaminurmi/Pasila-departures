@@ -9,6 +9,34 @@ from datetime import datetime
 from pathlib import Path
 
 from pasila_board.processing import Departure
+from pasila_board.travel import Coordinates
+
+_CREATE_PROFILE = """
+CREATE TABLE IF NOT EXISTS user_profile (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    given_name TEXT NOT NULL DEFAULT '',
+    family_name TEXT NOT NULL DEFAULT '',
+    address TEXT NOT NULL DEFAULT '',
+    direction_code TEXT NOT NULL DEFAULT 'HKI'
+)
+"""
+
+_CREATE_GEOCODE = """
+CREATE TABLE IF NOT EXISTS geocode_cache (
+    address_key TEXT PRIMARY KEY,
+    latitude REAL NOT NULL,
+    longitude REAL NOT NULL
+)
+"""
+
+_CREATE_TRAVEL = """
+CREATE TABLE IF NOT EXISTS travel_cache (
+    address_key TEXT NOT NULL,
+    travel_mode TEXT NOT NULL,
+    duration_seconds INTEGER NOT NULL,
+    PRIMARY KEY (address_key, travel_mode)
+)
+"""
 
 _CREATE_TABLE = """
 CREATE TABLE IF NOT EXISTS departures (
@@ -57,6 +85,16 @@ ORDER BY hour_local
 
 
 @dataclass(frozen=True)
+class UserProfile:
+    """Paikallisesti tallennettu käyttäjä. Nimeä ei lähetetä ulos."""
+
+    given_name: str = ""
+    family_name: str = ""
+    address: str = ""
+    direction_code: str = "HKI"
+
+
+@dataclass(frozen=True)
 class DelayBucket:
     """Yhden linjan tai kellonajan myöhästymiset."""
 
@@ -74,6 +112,9 @@ class DepartureStore:
         self._path.parent.mkdir(parents=True, exist_ok=True)
         with self._connect() as connection:
             connection.execute(_CREATE_TABLE)
+            connection.execute(_CREATE_PROFILE)
+            connection.execute(_CREATE_GEOCODE)
+            connection.execute(_CREATE_TRAVEL)
 
     def upsert_departures(
         self,
@@ -100,6 +141,104 @@ class DepartureStore:
         ]
         with self._connect() as connection:
             connection.executemany(_UPSERT, rows)
+
+    def load_profile(self) -> UserProfile:
+        """Palauta tallennettu profiili tai tyhjät oletukset."""
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT given_name, family_name, address, direction_code
+                FROM user_profile WHERE id = 1
+                """
+            ).fetchone()
+        if row is None:
+            return UserProfile()
+        return UserProfile(
+            given_name=row[0],
+            family_name=row[1],
+            address=row[2],
+            direction_code=row[3] or "HKI",
+        )
+
+    def save_profile(self, profile: UserProfile) -> None:
+        """Tallenna profiili paikallisesti. Ei verkkokutsuja."""
+        with self._connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO user_profile (
+                    id, given_name, family_name, address, direction_code
+                ) VALUES (1, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    given_name = excluded.given_name,
+                    family_name = excluded.family_name,
+                    address = excluded.address,
+                    direction_code = excluded.direction_code
+                """,
+                (
+                    profile.given_name.strip(),
+                    profile.family_name.strip(),
+                    profile.address.strip(),
+                    profile.direction_code,
+                ),
+            )
+
+    def cached_coordinates(self, address: str) -> Coordinates | None:
+        """Palauta välimuistissa oleva geokoodaus tai None."""
+        key = _address_key(address)
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT latitude, longitude FROM geocode_cache WHERE address_key = ?",
+                (key,),
+            ).fetchone()
+        if row is None:
+            return None
+        return Coordinates(latitude=row[0], longitude=row[1])
+
+    def save_coordinates(self, address: str, coords: Coordinates) -> None:
+        """Tallenna geokoodaus paikallisesti."""
+        with self._connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO geocode_cache (address_key, latitude, longitude)
+                VALUES (?, ?, ?)
+                ON CONFLICT(address_key) DO UPDATE SET
+                    latitude = excluded.latitude,
+                    longitude = excluded.longitude
+                """,
+                (_address_key(address), coords.latitude, coords.longitude),
+            )
+
+    def cached_travel_seconds(self, address: str, travel_mode: str) -> int | None:
+        """Palauta välimuistissa oleva matka-aika tai None."""
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT duration_seconds FROM travel_cache
+                WHERE address_key = ? AND travel_mode = ?
+                """,
+                (_address_key(address), travel_mode),
+            ).fetchone()
+        if row is None:
+            return None
+        return int(row[0])
+
+    def save_travel_seconds(
+        self,
+        address: str,
+        travel_mode: str,
+        duration_seconds: int,
+    ) -> None:
+        """Tallenna matka-aika paikallisesti."""
+        with self._connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO travel_cache (address_key, travel_mode, duration_seconds)
+                VALUES (?, ?, ?)
+                ON CONFLICT(address_key, travel_mode) DO UPDATE SET
+                    duration_seconds = excluded.duration_seconds
+                """,
+                (_address_key(address), travel_mode, duration_seconds),
+            )
 
     def delay_stats_by_line(self, station_code: str) -> list[DelayBucket]:
         """Myöhästymiset linjoittain, perutut jätetään pois."""
@@ -144,3 +283,7 @@ class DepartureStore:
         connection = sqlite3.connect(self._path)
         connection.execute("PRAGMA foreign_keys = ON")
         return connection
+
+
+def _address_key(address: str) -> str:
+    return " ".join(address.casefold().split())

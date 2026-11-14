@@ -35,13 +35,22 @@ class DigitrafficClient:
         """Palauta /metadata/stations -listaus."""
         return self._get_json("/metadata/stations")
 
-    def fetch_departing_trains(self, station_code: str) -> list[dict[str, Any]]:
+    def fetch_departing_trains(
+        self,
+        station_code: str,
+        *,
+        departing_trains: int | None = None,
+    ) -> list[dict[str, Any]]:
         """Palauta aseman seuraavat lähtevät lähijunat (raaka JSON)."""
         params = {
             "arrived_trains": 0,
             "arriving_trains": 0,
             "departed_trains": 0,
-            "departing_trains": self._settings.departing_trains,
+            "departing_trains": (
+                departing_trains
+                if departing_trains is not None
+                else self._settings.departing_trains
+            ),
             "include_nonstopping": "false",
             "train_categories": self._settings.train_categories,
         }

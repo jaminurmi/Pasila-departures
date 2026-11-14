@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from pasila_board.processing import Departure
 
 MISSING_TRACK = "—"
@@ -32,3 +34,15 @@ def format_estimate(item: Departure) -> str:
     if item.is_delayed and item.delay_minutes:
         return f"{clock} (+{item.delay_minutes} min)"
     return clock
+
+
+LEAVE_HOME_MISSED = "ei ehdi"
+
+
+def format_leave_home(deadline: datetime | None, *, cancelled: bool) -> str:
+    """Kelloaika kotoa tai ei ehdi / viiva."""
+    if cancelled:
+        return MISSING_ESTIMATE
+    if deadline is None:
+        return LEAVE_HOME_MISSED
+    return deadline.strftime("%H:%M")

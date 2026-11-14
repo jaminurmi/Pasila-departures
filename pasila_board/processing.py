@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Callable, Iterator
 from zoneinfo import ZoneInfo
 
@@ -59,6 +59,7 @@ def build_departures(
     now: datetime,
     limit: int,
     hub_codes: tuple[str, ...] = ("LEN", "HKI"),
+    via_station_code: str | None = None,
 ) -> list[Departure]:
     """Poimi tulevat lähdöt, järjestä ajan mukaan ja rajaa määrään."""
     departures: list[Departure] = []
@@ -69,6 +70,7 @@ def build_departures(
             name_for=name_for,
             timezone_name=timezone_name,
             hub_codes=hub_codes,
+            via_station_code=via_station_code,
         ):
             compare_at = (
                 departure.scheduled_local
@@ -90,6 +92,7 @@ def _departures_from_train(
     name_for: NameLookup,
     timezone_name: str,
     hub_codes: tuple[str, ...],
+    via_station_code: str | None,
 ) -> Iterator[Departure]:
     """Yksi rivi kutakin aseman kaupallista DEPARTURE-tapahtumaa kohti.
 
@@ -101,6 +104,13 @@ def _departures_from_train(
         if not _is_station_departure(row, station_code):
             continue
         if isinstance(row.get("actualTime"), str):
+            continue
+        if via_station_code and not stops_at_after_departure(
+            rows,
+            index,
+            station_code,
+            via_station_code,
+        ):
             continue
         departure = _departure_from_row(
             train,
@@ -181,6 +191,40 @@ def _delay_minutes(
     return None
 
 
+def stops_at_after_departure(
+    rows: list[dict[str, Any]],
+    departure_index: int,
+    station_code: str,
+    target_code: str,
+) -> bool:
+    """Pysähtyykö juna kohteessa tämän lähdön jälkeen, ennen paluuta asemalle."""
+    for row in _leg_arrivals(rows, departure_index, station_code):
+        if row.get("stationShortCode") == target_code and not row.get("cancelled"):
+            return True
+    return False
+
+
+def _leg_arrivals(
+    rows: list[dict[str, Any]],
+    departure_index: int,
+    station_code: str,
+) -> Iterator[dict[str, Any]]:
+    """Kaupalliset saapumiset tämän lähdön jälkeen, kunnes juna palaa asemalle."""
+    for row in rows[departure_index + 1 :]:
+        if row.get("type") != "ARRIVAL":
+            continue
+        if row.get("trainStopping") is False:
+            continue
+        if row.get("commercialStop") is False:
+            continue
+        code = row.get("stationShortCode")
+        if not isinstance(code, str):
+            continue
+        if code == station_code:
+            return
+        yield row
+
+
 def _is_station_departure(row: dict[str, Any], station_code: str) -> bool:
     """Onko rivi aseman kaupallinen lähtö."""
     if row.get("stationShortCode") != station_code:
@@ -213,18 +257,10 @@ def _destination_code(
     last_hub_commercial: str | None = None
     last_hub_active: str | None = None
 
-    for row in rows[departure_index + 1 :]:
-        if row.get("type") != "ARRIVAL":
-            continue
-        if row.get("trainStopping") is False:
-            continue
-        if row.get("commercialStop") is False:
-            continue
+    for row in _leg_arrivals(rows, departure_index, station_code):
         code = row.get("stationShortCode")
         if not isinstance(code, str):
             continue
-        if code == station_code:
-            break
         last_commercial = code
         if code in hub_codes:
             last_hub_commercial = code
@@ -246,3 +282,24 @@ def _effective_time(departure: Departure) -> datetime:
     if departure.estimate_local is not None and not departure.cancelled:
         return departure.estimate_local
     return departure.scheduled_local
+
+
+def leave_home_deadline(
+    departure: Departure,
+    *,
+    travel_seconds: int,
+    buffer_minutes: int,
+) -> datetime:
+    """Viimeinen hetki lähteä kotoa: junan aika miinus matka miinus puskuri.
+
+    Junan aikana käytetään ennustetta, jos se on saatavilla.
+    """
+    train_at = _effective_time(departure)
+    return train_at - timedelta(seconds=travel_seconds) - timedelta(
+        minutes=buffer_minutes
+    )
+
+
+def missed_leave_home(deadline: datetime, now: datetime) -> bool:
+    """True, jos kotoa pitäisi olla jo lähdetty."""
+    return deadline < now

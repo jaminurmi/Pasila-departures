@@ -55,5 +55,5 @@ def _row_style(item: Departure) -> str:
     if item.cancelled:
         return "bold red"
     if item.is_delayed:
-        return "yellow"
+        return "bold red"
     return ""
