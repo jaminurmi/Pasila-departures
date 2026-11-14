@@ -3,7 +3,7 @@
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from pasila_board.display import MISSING_TRACK, format_estimate
+from pasila_board.display import MISSING_TRACK, format_scheduled
 from pasila_board.processing import (
     build_departures,
     stops_at_after_departure,
@@ -132,7 +132,7 @@ def test_cancelled_train_is_not_marked_delayed() -> None:
     assert len(result) == 1
     assert result[0].cancelled is True
     assert result[0].is_delayed is False
-    assert format_estimate(result[0]) == "peruttu"
+    assert "peruttu" in format_scheduled(result[0])
 
 
 def test_p_train_keeps_second_pasila_departure() -> None:

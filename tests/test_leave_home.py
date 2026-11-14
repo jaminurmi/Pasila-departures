@@ -5,7 +5,7 @@ from zoneinfo import ZoneInfo
 
 from pasila_board.display import LEAVE_HOME_MISSED, format_leave_home
 from pasila_board.processing import Departure, leave_home_deadline, missed_leave_home
-from pasila_board.web_table import LEAVE_HOME_COLUMN, departures_frame, style_departure_rows
+from pasila_board.web_table import LEAVE_HOME_COLUMN, departures_frame, departures_table_html
 
 HELSINKI = ZoneInfo("Europe/Helsinki")
 
@@ -52,15 +52,15 @@ def test_missed_leave_home_when_deadline_has_passed() -> None:
 
 def test_leave_home_column_hidden_without_travel_time() -> None:
     frame = departures_frame([_departure()])
-    styled = style_departure_rows(frame)
+    html = departures_table_html(frame)
     assert LEAVE_HOME_COLUMN not in frame.columns
-    assert LEAVE_HOME_COLUMN not in list(styled.data.columns)
+    assert LEAVE_HOME_COLUMN not in html
 
 
 def test_missed_row_is_gray_in_table() -> None:
     now = datetime(2026, 11, 14, 14, 25, tzinfo=HELSINKI)
     item = _departure()
-    styled = style_departure_rows(
+    html = departures_table_html(
         departures_frame(
             [item],
             travel_seconds=20 * 60,
@@ -68,7 +68,6 @@ def test_missed_row_is_gray_in_table() -> None:
             now=now,
         )
     )
-    html = styled.to_html()
-    assert LEAVE_HOME_COLUMN in list(styled.data.columns)
+    assert LEAVE_HOME_COLUMN in html
     assert "ei ehdi" in html
     assert "#e9ecef" in html

@@ -1,6 +1,6 @@
 # Pasila departures
 
-Shows the next departing commuter trains from Pasila (PSL) using Digitraffic’s open Rail API. The table lists line, destination, departure time (Europe/Helsinki), estimate, track, and — when an address is set — the latest time to leave home. Cancelled and delayed rows are red; trains you can no longer catch are gray.
+Shows the next departing commuter trains from Pasila (PSL) using Digitraffic’s open Rail API. The table lists line, destination, departure time (Europe/Helsinki, with +minutes when delayed), track, and — when an address is set — the latest time to leave home. Cancelled and delayed rows are red; trains you can no longer catch are gray.
 
 The console prints the next 15 departures. The Streamlit view refreshes every 30 seconds, filters by direction (Helsinki central station or Airport), stores a local user profile, and keeps delay statistics in SQLite.
 

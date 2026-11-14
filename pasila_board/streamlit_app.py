@@ -14,7 +14,7 @@ from pasila_board.layout import apply_page_chrome, render_profile_form, render_t
 from pasila_board.stations import StationDirectory
 from pasila_board.storage import DepartureStore
 from pasila_board.travel import DigitransitClient, TravelError, resolve_travel_seconds
-from pasila_board.web_table import departures_frame, stats_frame, style_departure_rows
+from pasila_board.web_table import departures_frame, departures_table_html, stats_frame
 
 
 @st.cache_resource
@@ -144,13 +144,7 @@ def _render_live_table(
             buffer_minutes=SETTINGS.leave_home_buffer_minutes,
             now=now if travel_seconds is not None else None,
         )
-        st.dataframe(
-            style_departure_rows(frame),
-            hide_index=True,
-            width="stretch",
-            height="content",
-            row_height=SETTINGS.table_row_height_px,
-        )
+        st.html(departures_table_html(frame), width="stretch")
 
     _render_delay_stats(station_code)
 

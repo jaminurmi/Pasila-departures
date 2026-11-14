@@ -4,7 +4,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from pasila_board.processing import Departure
-from pasila_board.web_table import departures_frame, style_departure_rows
+from pasila_board.web_table import departures_frame, departures_table_html
 
 HELSINKI = ZoneInfo("Europe/Helsinki")
 
@@ -15,20 +15,20 @@ def test_cancelled_and_delayed_rows_use_red_background() -> None:
         estimate_local=datetime(2026, 11, 9, 20, 40, tzinfo=HELSINKI),
         delay_minutes=2,
     )
-    styled = style_departure_rows(departures_frame([cancelled, delayed]))
-    html = styled.to_html()
-    assert list(styled.data.columns) == [
-        "Linja",
-        "Päämäärä",
-        "Lähtö",
-        "Ennuste",
-        "Raide",
-    ]
-    assert "#f8d7da" in html
+    html = departures_table_html(departures_frame([cancelled, delayed]))
+    assert "Linja" in html
+    assert "Määränpää" in html
+    assert "text-align:center" in html
+    assert "Lähtö" in html
+    assert "Raide" in html
+    assert "rgba(107, 21, 21, 0.25)" in html
+    assert "rgba(74, 16, 16, 0.25)" in html
     assert "#fff3cd" not in html
     assert "peruttu" in html
-    assert "+2 min" in html
+    assert "20:38 +2" in html
+    assert "Ennuste" not in html
     assert "_cancelled" not in html
+    assert "box-shadow: inset 0 -1px 0" in html
 
 
 def _departure(**overrides: object) -> Departure:

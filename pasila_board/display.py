@@ -18,21 +18,14 @@ def format_destination(item: Departure) -> str:
 
 
 def format_scheduled(item: Departure) -> str:
-    """Aikataulun mukainen lähtö kellonaikana."""
-    return item.scheduled_local.strftime("%H:%M")
-
-
-def format_estimate(item: Departure) -> str:
-    """Ennuste, peruttu-merkintä tai viiva jos ennustetta ei ole."""
+    """Aikataulun mukainen lähtö; myöhässä oleville +minuutit."""
+    clock = item.scheduled_local.strftime("%H:%M")
     if item.cancelled:
-        return "peruttu"
+        return f"{clock} peruttu"
+    if item.delay_minutes is not None and item.delay_minutes >= 1:
+        return f"{clock} +{item.delay_minutes}"
     if item.unknown_delay:
-        return "myöhässä"
-    if item.estimate_local is None:
-        return MISSING_ESTIMATE
-    clock = item.estimate_local.strftime("%H:%M")
-    if item.is_delayed and item.delay_minutes:
-        return f"{clock} (+{item.delay_minutes} min)"
+        return f"{clock} +"
     return clock
 
 

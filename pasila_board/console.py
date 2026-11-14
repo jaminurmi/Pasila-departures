@@ -8,7 +8,6 @@ from rich.table import Table
 from pasila_board.display import (
     MISSING_TRACK,
     format_destination,
-    format_estimate,
     format_scheduled,
 )
 from pasila_board.processing import Departure
@@ -28,14 +27,13 @@ def render_departures(
         caption=attribution,
         show_lines=False,
     )
-    table.add_column("Linja", justify="center", style="bold")
-    table.add_column("Päämäärä")
-    table.add_column("Lähtö", justify="right")
-    table.add_column("Ennuste", justify="right")
-    table.add_column("Raide", justify="center")
+    table.add_column("Linja", justify="center", style="bold", width=5)
+    table.add_column("Määränpää")
+    table.add_column("Lähtö", justify="center", width=12)
+    table.add_column("Raide", justify="center", width=5)
 
     if not departures:
-        table.add_row("—", "Ei lähteviä lähijunia", "—", "—", "—")
+        table.add_row("—", "Ei lähteviä lähijunia", "—", "—")
         out.print(table)
         return
 
@@ -44,7 +42,6 @@ def render_departures(
             item.line_id or "—",
             format_destination(item),
             format_scheduled(item),
-            format_estimate(item),
             item.track or MISSING_TRACK,
             style=_row_style(item),
         )

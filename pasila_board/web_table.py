@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import html
+
 import pandas as pd
-from pandas.io.formats.style import Styler
 
 from datetime import datetime
 
@@ -11,7 +12,6 @@ from pasila_board.display import (
     MISSING_ESTIMATE,
     MISSING_TRACK,
     format_destination,
-    format_estimate,
     format_leave_home,
     format_scheduled,
 )
@@ -22,8 +22,8 @@ from pasila_board.processing import (
 )
 from pasila_board.storage import DelayBucket
 
-CANCELLED_STYLE = "background-color: #f8d7da; color: #721c24"
-DELAYED_STYLE = "background-color: #f8d7da; color: #721c24"
+CANCELLED_STYLE = "background-color: rgba(74, 16, 16, 0.25); color: #ff8a80"
+DELAYED_STYLE = "background-color: rgba(107, 21, 21, 0.25); color: #ff6b6b"
 MISSED_STYLE = "background-color: #e9ecef; color: #6c757d"
 LEAVE_HOME_COLUMN = "Lähde viimeistään"
 
@@ -40,9 +40,8 @@ def departures_frame(
     for item in departures:
         row: dict = {
             "Linja": item.line_id or "—",
-            "Päämäärä": format_destination(item),
+            "Määränpää": format_destination(item),
             "Lähtö": format_scheduled(item),
-            "Ennuste": format_estimate(item),
             "Raide": item.track or MISSING_TRACK,
             "_cancelled": item.cancelled,
             "_delayed": item.is_delayed,
@@ -64,38 +63,74 @@ def departures_frame(
     return pd.DataFrame(rows)
 
 
-VISIBLE_COLUMNS = ["Linja", "Päämäärä", "Lähtö", "Ennuste", "Raide"]
+VISIBLE_COLUMNS = ["Linja", "Määränpää", "Lähtö", "Raide"]
+_ROW_LINE = "box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.25);"
+_HEADER_LINE = "box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.7);"
+_COLUMN_LAYOUT = {
+    "Linja": "width:3.2rem;text-align:center;white-space:nowrap;",
+    "Määränpää": "text-align:left;",
+    "Lähtö": "width:7.2rem;text-align:center;white-space:nowrap;",
+    "Raide": "width:3.4rem;text-align:center;white-space:nowrap;",
+    LEAVE_HOME_COLUMN: "width:8.5rem;text-align:right;white-space:nowrap;",
+}
 
 
-def style_departure_rows(frame: pd.DataFrame) -> Styler:
-    """Korosta perutut ja myöhässä punaisina, myöhästyneet kotoa harmaana."""
-    cancelled = frame["_cancelled"].to_numpy()
-    delayed = frame["_delayed"].to_numpy()
+def departures_table_html(frame: pd.DataFrame) -> str:
+    """HTML-taulu, jossa vaakaviivat ovat solujen varjossa (Streamlit ei nollaa niitä)."""
+    visible_names = _visible_column_names(frame)
+    cancelled = frame["_cancelled"].to_list()
+    delayed = frame["_delayed"].to_list()
     missed = (
-        frame["_missed"].to_numpy()
+        frame["_missed"].to_list()
         if "_missed" in frame.columns
         else [False] * len(frame)
     )
-    visible_names = list(VISIBLE_COLUMNS)
-    if LEAVE_HOME_COLUMN in frame.columns:
-        visible_names.append(LEAVE_HOME_COLUMN)
-    visible = frame[visible_names]
-
-    def row_styles(row: pd.Series) -> list[str]:
-        index = int(row.name)
-        if cancelled[index]:
-            fill = CANCELLED_STYLE
-        elif missed[index]:
-            fill = MISSED_STYLE
-        elif delayed[index]:
-            fill = DELAYED_STYLE
-        else:
-            fill = ""
-        return [fill] * len(row)
-
-    return visible.style.apply(row_styles, axis=1).format(
-        {column: str for column in visible_names}
+    header_cells = "".join(
+        f'<th style="border:0;{_HEADER_LINE}padding:0.28rem 0.4rem;'
+        f'font-weight:600;{_column_layout(name)}">'
+        f"{html.escape(name)}</th>"
+        for name in visible_names
     )
+    body_rows = []
+    for index, row in frame.iterrows():
+        row_index = int(index)
+        fill = _row_fill(cancelled[row_index], missed[row_index], delayed[row_index])
+        cells = "".join(
+            f'<td style="border:0;{_ROW_LINE}padding:0.28rem 0.4rem;'
+            f'{_column_layout(name)}{fill}">'
+            f"{html.escape(str(row[name]))}</td>"
+            for name in visible_names
+        )
+        body_rows.append(f"<tr>{cells}</tr>")
+    body = "".join(body_rows)
+    return (
+        '<table class="pasila-departures" style="width:100%;border-collapse:collapse;'
+        'table-layout:fixed;border:0">'
+        f"<thead><tr>{header_cells}</tr></thead>"
+        f"<tbody>{body}</tbody>"
+        "</table>"
+    )
+
+
+def _column_layout(name: str) -> str:
+    return _COLUMN_LAYOUT.get(name, "text-align:left;")
+
+
+def _visible_column_names(frame: pd.DataFrame) -> list[str]:
+    names = list(VISIBLE_COLUMNS)
+    if LEAVE_HOME_COLUMN in frame.columns:
+        names.append(LEAVE_HOME_COLUMN)
+    return names
+
+
+def _row_fill(cancelled: bool, missed: bool, delayed: bool) -> str:
+    if cancelled:
+        return f"{CANCELLED_STYLE};"
+    if missed:
+        return f"{MISSED_STYLE};"
+    if delayed:
+        return f"{DELAYED_STYLE};"
+    return ""
 
 
 def stats_frame(buckets: list[DelayBucket], group_column: str) -> pd.DataFrame:
