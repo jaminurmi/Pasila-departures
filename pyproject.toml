@@ -1,0 +1,22 @@
+[project]
+name = "pasila-board"
+version = "0.1.0"
+description = "Pasilan aseman lähtevät lähijunat Digitrafficin Rail API:sta"
+requires-python = ">=3.11"
+dependencies = [
+    "requests>=2.31",
+    "rich>=13.7",
+    "tzdata>=2024.1",
+    "streamlit>=1.40",
+    "pandas>=2.2",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+pasila-board = "pasila_board.__main__:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

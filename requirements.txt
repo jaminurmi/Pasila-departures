@@ -1,0 +1,12 @@
+# HTTP-kutsut Digitrafficin Rail API:in (timeout, otsikot, JSON).
+requests>=2.31
+# Konsolin taulukko ja värit (vaihe 1, pyydetty kirjasto).
+rich>=13.7
+# IANA-aikavyöhykkeet Windowsille (zoneinfo ei löydä Europe/Helsinkiä ilman tätä).
+tzdata>=2024.1
+# Web-näkymä ja st.fragment(run_every=...) -päivitys (vaihe 2, pyydetty).
+streamlit>=1.40
+# Taulukko ja rivikohtainen väritys (Styler) Streamlitissä.
+pandas>=2.2
+# Yksikkötestit (pyydetty).
+pytest>=8.0
